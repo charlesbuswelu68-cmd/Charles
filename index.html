@@ -98,3 +98,17 @@ document.getElementById(id).classList.add('active');
 </body>
 </html>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+const SUPABASE_URL = "https://bwjzmevljyunacrrvpvz.supabase.co";
+
+const SUPABASE_KEY = "sb_publishable_YF6CECqa9lUMVURDUbOSSQ_A3d6sIW0";
+
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
+
+console.log("Clinical Master Supabase client initialized");
+</script>
