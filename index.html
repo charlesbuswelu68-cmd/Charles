@@ -153,3 +153,313 @@ checkLogin();
 </script>
 </body>
 </html>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clinical Master | Healthcare Education</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f1f5f9;color:#172554}
+header{background:#123c69;color:white;padding:22px 15px;text-align:center}
+header h1{margin:0;font-size:27px}
+header p{margin:7px 0}
+main{max-width:1000px;margin:20px auto;padding:12px}
+.card{background:white;padding:19px;margin:14px 0;border-radius:12px;box-shadow:0 2px 8px #0001}
+input,button{padding:13px;margin:6px 0;width:100%;border-radius:7px;border:1px solid #ccc;font-size:16px}
+button{background:#1261a0;color:white;border:0;cursor:pointer}
+button:disabled{opacity:.5}
+button.secondary{background:#475569}
+button.green{background:#167447}
+.hidden{display:none!important}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.topic{border-bottom:1px solid #ddd;padding:12px 0}
+.topic button{text-align:left}
+.detail{background:#f8fafc;padding:12px;border-radius:8px;margin-top:8px}
+#message,.status{padding:10px;color:#a12b2b;white-space:pre-wrap}
+.success{color:#167447}
+.option{background:#e8f1fa;color:#123c69;text-align:left}
+.option.correct{background:#167447;color:white}
+.option.wrong{background:#a12b2b;color:white}
+footer{text-align:center;padding:20px;color:#64748b}
+</style>
+</head>
+<body>
+<header>
+<h1>CLINICAL MASTER</h1>
+<p>Healthcare Education and Clinical Excellence</p>
+<p>Founded by Charles Buswelu</p>
+</header>
+
+<main>
+<section class="card" id="auth">
+<h2>Student Registration and Login</h2>
+<input id="email" type="email" placeholder="Email address" autocomplete="email">
+<input id="password" type="password" placeholder="Password" autocomplete="current-password">
+<button onclick="register()">Create Account</button>
+<button class="green" onclick="login()">Login</button>
+<p id="message"></p>
+</section>
+
+<section class="card hidden" id="dashboard">
+<h2>Student Dashboard</h2>
+<p id="user"></p>
+<h3>Healthcare Departments</h3>
+<div id="departments" class="grid">Loading departments...</div>
+<p id="departmentStatus" class="status"></p>
+<button class="secondary" onclick="loadQuestions()">Clinical MCQ Examination</button>
+<button class="secondary" onclick="logout()">Logout</button>
+</section>
+
+<section class="card hidden" id="topics">
+<button class="secondary" onclick="backToDashboard()">← Back to Dashboard</button>
+<h2 id="departmentTitle">Department</h2>
+<div id="topicList">Loading content...</div>
+</section>
+
+<section class="card hidden" id="examination">
+<button class="secondary" onclick="backToDashboard()">← Back to Dashboard</button>
+<h2>Clinical MCQ Examination</h2>
+<p>Choose the best answer for each question.</p>
+<div id="questions">Loading questions...</div>
+</section>
+</main>
+
+<footer>Clinical Master | Healthcare Education</footer>
+
+<script>
+const SUPABASE_URL='https://bwjzmevljyunacrrvpvz.supabase.co';
+const SUPABASE_KEY='sb_publishable_thAgJd88dBHOH7pByEsxsw_KnmF8ZGx';
+const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+const $=id=>document.getElementById(id);
+
+async function register(){
+ const email=$('email').value.trim();
+ const password=$('password').value;
+ if(!email||password.length<6){
+  $('message').textContent='Enter a valid email and password of at least 6 characters.';
+  return;
+ }
+ $('message').textContent='Creating account...';
+ const {data,error}=await db.auth.signUp({email,password});
+ if(error){$('message').textContent=error.message;return;}
+ if(data.session){
+  showDashboard(data.user);
+ }else{
+  $('message').textContent='Account created. Please log in with your email and password.';
+ }
+}
+
+async function login(){
+ const email=$('email').value.trim();
+ const password=$('password').value;
+ if(!email||!password){
+  $('message').textContent='Enter your email and password.';
+  return;
+ }
+ $('message').textContent='Logging in...';
+ const {data,error}=await db.auth.signInWithPassword({email,password});
+ if(error){$('message').textContent=error.message;return;}
+ showDashboard(data.user);
+}
+
+async function logout(){
+ await db.auth.signOut();
+ location.reload();
+}
+
+function showDashboard(user){
+ $('auth').classList.add('hidden');
+ $('topics').classList.add('hidden');
+ $('examination').classList.add('hidden');
+ $('dashboard').classList.remove('hidden');
+ $('user').textContent='Signed in as '+user.email;
+ loadDepartments();
+}
+
+async function checkLogin(){
+ const {data,error}=await db.auth.getSession();
+ if(error){$('message').textContent=error.message;return;}
+ if(data.session)showDashboard(data.session.user);
+}
+
+async function loadDepartments(){
+ const container=$('departments');
+ container.textContent='Loading departments...';
+ $('departmentStatus').textContent='';
+ const {data,error}=await db.from('departments')
+  .select('name,description').order('name');
+ if(error){
+  container.textContent='Unable to load departments: '+error.message;
+  return;
+ }
+ container.replaceChildren();
+ if(!data||data.length===0){
+  container.textContent='No departments have been added yet.';
+  return;
+ }
+ data.forEach(dept=>{
+  const card=document.createElement('div');
+  card.className='card';
+  const title=document.createElement('h3');
+  title.textContent=dept.name;
+  const description=document.createElement('p');
+  description.textContent=dept.description||'Healthcare learning department';
+  const button=document.createElement('button');
+  button.textContent='Open Department';
+  button.onclick=()=>openDepartment(dept.name);
+  card.append(title,description,button);
+  container.appendChild(card);
+ });
+}
+
+async function openDepartment(name){
+ $('dashboard').classList.add('hidden');
+ $('examination').classList.add('hidden');
+ $('topics').classList.remove('hidden');
+ $('departmentTitle').textContent=name;
+ const list=$('topicList');
+ list.textContent='Loading educational content...';
+
+ if(name.toLowerCase()==='internal medicine'){
+  await loadTopics();
+ }else{
+  list.textContent='The '+name+' department is ready. Its clinical topics, notes and examinations will be added in the next content-development stage.';
+ }
+}
+
+async function loadTopics(){
+ const list=$('topicList');
+ list.textContent='Loading topics...';
+ const {data,error}=await db.from('internal_medicine_topics')
+  .select('*').order('id');
+ if(error){
+  list.textContent='Unable to load topics: '+error.message;
+  return;
+ }
+ list.replaceChildren();
+ if(!data||data.length===0){
+  list.textContent='No topics available yet.';
+  return;
+ }
+ data.forEach(item=>{
+  const card=document.createElement('div');
+  card.className='topic';
+  const title=document.createElement('h3');
+  title.textContent=item.title||'Untitled topic';
+  const category=document.createElement('p');
+  category.textContent=item.category||'Internal Medicine';
+  const button=document.createElement('button');
+  button.textContent='Read Clinical Topic';
+  button.onclick=()=>{
+   const detail=card.querySelector('.detail');
+   detail.classList.toggle('hidden');
+   button.textContent=detail.classList.contains('hidden')?'Read Clinical Topic':'Close Topic';
+  };
+  const detail=document.createElement('div');
+  detail.className='detail hidden';
+  const fields=[
+   ['Overview',item.overview],
+   ['Clinical Features',item.clinical_features],
+   ['Symptoms',item.symptoms],
+   ['Diagnosis',item.diagnosis],
+   ['Diagnostic Criteria',item.diagnostic_criteria],
+   ['Differential Diagnosis',item.differential_diagnosis],
+   ['Investigations',item.investigations],
+   ['Treatment',item.treatment],
+   ['Management',item.management],
+   ['Drug Dosages',item.drug_dosages],
+   ['Complications',item.complications],
+   ['Prevention',item.prevention],
+   ['Clinical Guidelines',item.clinical_guidelines]
+  ];
+  fields.forEach(([label,value])=>{
+   if(value){
+    const heading=document.createElement('h4');
+    heading.textContent=label;
+    const paragraph=document.createElement('p');
+    paragraph.textContent=value;
+    detail.append(heading,paragraph);
+   }
+  });
+  card.append(title,category,button,detail);
+  list.appendChild(card);
+ });
+}
+
+async function loadQuestions(){
+ $('dashboard').classList.add('hidden');
+ $('topics').classList.add('hidden');
+ $('examination').classList.remove('hidden');
+ const container=$('questions');
+ container.textContent='Loading examination questions...';
+ const {data,error}=await db.from('clinical_mcqs')
+  .select('id,department,topic,question,option_a,option_b,option_c,option_d,correct_answer,explanation')
+  .order('id');
+ if(error){
+  container.textContent='Unable to load questions: '+error.message;
+  return;
+ }
+ container.replaceChildren();
+ if(!data||data.length===0){
+  container.textContent='No examination questions available.';
+  return;
+ }
+ let score=0,answered=0;
+ const result=document.createElement('h3');
+ result.textContent='Score: 0 / '+data.length;
+ container.appendChild(result);
+
+ data.forEach((q,index)=>{
+  const card=document.createElement('div');
+  card.className='card';
+  const heading=document.createElement('h3');
+  heading.textContent=(index+1)+'. '+(q.topic||'Clinical Question');
+  const question=document.createElement('p');
+  question.textContent=q.question||'';
+  const feedback=document.createElement('p');
+  card.append(heading,question);
+  ['A','B','C','D'].forEach(letter=>{
+   const option=document.createElement('button');
+   option.className='option';
+   option.textContent=letter+'. '+(q['option_'+letter.toLowerCase()]||'');
+   option.onclick=()=>{
+    if(card.dataset.answered)return;
+    card.dataset.answered='yes';
+    answered++;
+    const correct=letter===String(q.correct_answer||'').trim().toUpperCase();
+    if(correct){
+     score++;
+     feedback.textContent='Correct answer!';
+     feedback.className='success';
+     option.classList.add('correct');
+    }else{
+     feedback.textContent='Incorrect. Correct answer: '+q.correct_answer;
+     option.classList.add('wrong');
+    }
+    const explanation=document.createElement('p');
+    explanation.textContent='Explanation: '+(q.explanation||'Not provided.');
+    card.append(feedback,explanation);
+    result.textContent='Score: '+score+' / '+data.length+' | Answered: '+answered;
+    card.querySelectorAll('button').forEach(b=>b.disabled=true);
+   };
+   card.appendChild(option);
+  });
+  container.appendChild(card);
+ });
+}
+
+function backToDashboard(){
+ $('topics').classList.add('hidden');
+ $('examination').classList.add('hidden');
+ $('dashboard').classList.remove('hidden');
+}
+
+checkLogin();
+</script>
+</body>
+</html>
