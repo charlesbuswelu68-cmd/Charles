@@ -112,3 +112,244 @@ const supabaseClient = window.supabase.createClient(
 
 console.log("Clinical Master Supabase client initialized");
 </script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clinical Master | Healthcare Education</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+body{margin:0;font-family:Arial;background:#f1f5f9;color:#172554}
+header{background:#123c69;color:white;padding:24px;text-align:center}
+main{max-width:850px;margin:25px auto;padding:15px}
+.card{background:white;padding:20px;margin:15px 0;border-radius:12px;box-shadow:0 2px 8px #0001}
+input,button{padding:13px;margin:7px 0;width:100%;box-sizing:border-box;border-radius:7px;border:1px solid #ccc;font-size:16px}
+button{background:#1261a0;color:white;border:0;cursor:pointer}
+button:hover{background:#084779}
+.hidden{display:none}
+.topic{border-bottom:1px solid #ddd;padding:12px}
+#message{padding:10px;color:#a12b2b}
+</style>
+</head>
+<body>
+
+<header>
+<h1>CLINICAL MASTER</h1>
+<p>Healthcare Education and Clinical Excellence</p>
+<p>Founded by Charles Buswelu</p>
+</header>
+
+<main>
+<section class="card" id="auth">
+<h2>Student Access</h2>
+<input id="email" type="email" placeholder="Email address">
+<input id="password" type="password" placeholder="Password">
+
+<button onclick="register()">Create Account</button>
+<button onclick="login()">Login</button>
+<p id="message"></p>
+</section>
+
+<section class="card hidden" id="dashboard">
+<h2>Welcome to Clinical Master</h2>
+<p id="user"></p>
+<button onclick="loadTopics()">Internal Medicine</button>
+<button onclick="loadQuestions()">Clinical MCQ Examination</button>
+<button onclick="logout()">Logout</button>
+</section>
+
+<section class="card hidden" id="topics">
+<h2>Internal Medicine Topics</h2>
+<div id="topicList">Loading topics...</div>
+</section>
+
+<section class="card hidden" id="examination">
+<h2>Clinical MCQ Examination</h2>
+<div id="questions">Loading questions...</div>
+</section>
+</main>
+
+<script>
+const SUPABASE_URL =
+'https://bwjzmevljyunacrrvpvz.supabase.co';
+
+const SUPABASE_KEY =
+'sb_publishable_thAgJd88dBHOH7pByEsxsw_KnmF8ZGx';
+
+const db = window.supabase.createClient(
+SUPABASE_URL, SUPABASE_KEY
+);
+
+const message = document.getElementById('message');
+
+async function register(){
+ const email = document.getElementById('email').value.trim();
+ const password = document.getElementById('password').value;
+
+ if(!email || password.length < 6){
+  message.textContent='Enter an email and a password of at least 6 characters.';
+  return;
+ }
+
+ const {error}=await db.auth.signUp({email,password});
+
+ message.textContent=error ? error.message :
+ 'Registration submitted. Check your email if confirmation is required.';
+}
+
+async function login(){
+ const email=document.getElementById('email').value.trim();
+ const password=document.getElementById('password').value;
+
+ const {data,error}=await db.auth.signInWithPassword({
+  email,password
+ });
+
+ if(error){
+  message.textContent=error.message;
+  return;
+ }
+
+ showDashboard(data.user);
+}
+
+async function logout(){
+ await db.auth.signOut();
+ location.reload();
+}
+
+function showDashboard(user){
+ document.getElementById('auth').classList.add('hidden');
+ document.getElementById('dashboard').classList.remove('hidden');
+ document.getElementById('user').textContent='Signed in as '+user.email;
+}
+
+async function checkLogin(){
+ const {data}=await db.auth.getSession();
+ if(data.session) showDashboard(data.session.user);
+}
+
+async function loadTopics(){
+ const section=document.getElementById('topics');
+ section.classList.remove('hidden');
+
+ const list=document.getElementById('topicList');
+ list.textContent='Loading topics...';
+
+ const {data,error}=await db.from('internal_medicine_topics')
+ .select('id,title,category,overview')
+ .order('id');
+
+ if(error){
+  list.textContent='Unable to load topics: '+error.message;
+  return;
+ }
+
+ list.replaceChildren();
+
+ if(!data.length){
+  list.textContent='No topics available yet.';
+  return;
+ }
+
+ data.forEach(item=>{
+  const div=document.createElement('div');
+  div.className='topic';
+
+  const heading=document.createElement('h3');
+  heading.textContent=item.title || 'Untitled topic';
+
+  const category=document.createElement('p');
+  category.textContent=item.category || '';
+
+  const overview=document.createElement('p');
+  overview.textContent=item.overview || '';
+
+  div.append(heading,category,overview);
+  list.appendChild(div);
+ });
+}
+
+async function loadQuestions(){
+ const section=document.getElementById('examination');
+ section.classList.remove('hidden');
+
+ const container=document.getElementById('questions');
+ container.textContent='Loading questions...';
+
+ const {data,error}=await db.from('clinical_mcqs')
+ .select('id,topic,question,option_a,option_b,option_c,option_d,correct_answer,explanation')
+ .order('id');
+
+ if(error){
+  container.textContent='Unable to load questions: '+error.message;
+  return;
+ }
+
+ container.replaceChildren();
+
+ if(!data.length){
+  container.textContent='No examination questions available.';
+  return;
+ }
+
+ let score=0;
+ let answered=0;
+
+ const result=document.createElement('h3');
+ result.textContent='Score: 0 / '+data.length;
+ container.appendChild(result);
+
+ data.forEach((q,index)=>{
+  const card=document.createElement('div');
+  card.className='card';
+
+  const heading=document.createElement('h3');
+  heading.textContent=(index+1)+'. '+(q.topic || '');
+  card.appendChild(heading);
+
+  const question=document.createElement('p');
+  question.textContent=q.question;
+  card.appendChild(question);
+
+  const feedback=document.createElement('p');
+
+  ['A','B','C','D'].forEach(letter=>{
+   const option=document.createElement('button');
+   option.textContent=letter+'. '+(q['option_'+letter.toLowerCase()] || '');
+
+   option.onclick=()=>{
+    if(card.dataset.answered) return;
+    card.dataset.answered='yes';
+    answered++;
+
+    if(letter===String(q.correct_answer).trim().toUpperCase()){
+     score++;
+     feedback.textContent='Correct!';
+    }else{
+     feedback.textContent='Incorrect. Correct answer: '+q.correct_answer;
+    }
+
+    const explanation=document.createElement('p');
+    explanation.textContent=q.explanation || '';
+    card.appendChild(explanation);
+
+    result.textContent='Score: '+score+' / '+data.length+
+      ' | Answered: '+answered;
+    card.querySelectorAll('button').forEach(b=>b.disabled=true);
+   };
+
+   card.appendChild(option);
+  });
+
+  card.appendChild(feedback);
+  container.appendChild(card);
+ });
+}
+
+checkLogin();
+</script>
+</body>
+</html>
+
